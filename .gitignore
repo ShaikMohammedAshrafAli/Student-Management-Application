@@ -1,13 +1,19 @@
-target/
-*.class
-*.jar
-!.mvn/wrapper/maven-wrapper.jar
+# IntelliJ
 .idea/
-*.iml
-.vscode/
+**/.idea/
+
+# Maven
+**/target/
+
+# Mac
 .DS_Store
+
+# Logs
 *.log
-HELP.md
-.mvn/
-mvnw
-mvnw.cmd
+
+# Environment
+.env
+
+# Node
+node_modules/
+dist/
