@@ -1,5 +1,7 @@
 package com.example.enrollmentservice.service;
 
+import com.example.common.security.JwtPrincipal;
+import com.example.common.security.SecurityUtils;
 import com.example.enrollmentservice.client.StudentClient;
 import com.example.enrollmentservice.dto.EnrollmentRequestDTO;
 import com.example.enrollmentservice.dto.EnrollmentResponseDTO;
@@ -12,16 +14,24 @@ import com.example.enrollmentservice.exception.ResourceNotFoundException;
 import com.example.enrollmentservice.repository.CourseRepository;
 import com.example.enrollmentservice.repository.EnrollmentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Orchestrates the student <-> course enrollment lifecycle.
- * This is where the inter-service REST call happens: before an enrollment
- * is created, the student's existence is validated against student-service.
+ *
+ * Access rules enforced here (in addition to @PreAuthorize on the
+ * controller for admin-only actions):
+ * - A STUDENT may only enroll THEMSELVES (their token's studentId is used,
+ *   overriding whatever studentId was sent in the request body) and may
+ *   only view/drop their OWN enrollments.
+ * - An ADMIN may enroll/view/drop on behalf of any student.
+ *
+ * Every call to student-service forwards the original caller's bearer
+ * token, so student-service applies the exact same ownership rule.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,89 +42,129 @@ public class EnrollmentService {
     private final CourseRepository courseRepository;
     private final StudentClient studentClient;
 
-    public EnrollmentResponseDTO enrollStudent(EnrollmentRequestDTO request) {
-        // 1. Validate the course exists and has room.
-        Course course = courseRepository.findById(request.getCourseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + request.getCourseId()));
+    public EnrollmentResponseDTO enrollStudent(EnrollmentRequestDTO request, String bearerToken) {
+        JwtPrincipal principal = requirePrincipal();
 
-        long confirmedCount = enrollmentRepository.countByCourseIdAndStatus(course.getId(), Enrollment.EnrollmentStatus.CONFIRMED);
+        // Determine the effective student ID exactly once
+        final Long effectiveStudentId;
+
+        if (principal.isAdmin()) {
+            effectiveStudentId = request.getStudentId();
+        } else {
+            effectiveStudentId = principal.getStudentId();
+        }
+
+        Course course = courseRepository.findById(request.getCourseId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Course not found with id: " + request.getCourseId()));
+
+        long confirmedCount = enrollmentRepository.countByCourseIdAndStatus(
+                course.getId(),
+                Enrollment.EnrollmentStatus.CONFIRMED);
+
         if (confirmedCount >= course.getCapacity()) {
             throw new CourseCapacityExceededException(
-                    "Course '" + course.getCourseCode() + "' has reached its capacity of " + course.getCapacity());
+                    "Course '" + course.getCourseCode()
+                            + "' has reached its capacity of "
+                            + course.getCapacity());
         }
 
-        // 2. Validate the student exists via inter-service REST call to student-service.
-        StudentDTO student = studentClient.getStudentById(request.getStudentId())
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + request.getStudentId()));
+        StudentDTO student = studentClient.getStudentById(effectiveStudentId, bearerToken)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Student not found with id: " + effectiveStudentId));
 
-        // 3. Prevent duplicate enrollment.
-        if (enrollmentRepository.existsByStudentIdAndCourseId(request.getStudentId(), request.getCourseId())) {
+        if (enrollmentRepository.existsByStudentIdAndCourseId(
+                effectiveStudentId,
+                request.getCourseId())) {
+
             throw new DuplicateResourceException(
-                    "Student " + request.getStudentId() + " is already enrolled in course " + request.getCourseId());
+                    "Student " + effectiveStudentId
+                            + " is already enrolled in course "
+                            + request.getCourseId());
         }
 
-        // 4. Persist the enrollment as CONFIRMED (workflow could route through
-        //    PENDING -> approval step first; kept simple here).
         Enrollment enrollment = Enrollment.builder()
-                .studentId(request.getStudentId())
+                .studentId(effectiveStudentId)
                 .course(course)
                 .status(Enrollment.EnrollmentStatus.CONFIRMED)
                 .build();
 
         Enrollment saved = enrollmentRepository.save(enrollment);
+
         return EnrollmentResponseDTO.fromEntity(saved, student);
     }
 
     @Transactional(readOnly = true)
-    public EnrollmentResponseDTO getEnrollmentById(Long id) {
+    public EnrollmentResponseDTO getEnrollmentById(Long id, String bearerToken) {
         Enrollment enrollment = enrollmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found with id: " + id));
-        StudentDTO student = studentClient.getStudentById(enrollment.getStudentId()).orElse(null);
+        requireAdminOrOwner(enrollment.getStudentId());
+        StudentDTO student = studentClient.getStudentById(enrollment.getStudentId(), bearerToken).orElse(null);
         return EnrollmentResponseDTO.fromEntity(enrollment, student);
     }
 
     @Transactional(readOnly = true)
-    public List<EnrollmentResponseDTO> getEnrollmentsByStudent(Long studentId) {
-        StudentDTO student = studentClient.getStudentById(studentId)
+    public List<EnrollmentResponseDTO> getEnrollmentsByStudent(Long studentId, String bearerToken) {
+        requireAdminOrOwner(studentId);
+        StudentDTO student = studentClient.getStudentById(studentId, bearerToken)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
         return enrollmentRepository.findByStudentId(studentId).stream()
                 .map(e -> EnrollmentResponseDTO.fromEntity(e, student))
                 .toList();
     }
 
+    /** ADMIN only - see EnrollmentController's @PreAuthorize. */
     @Transactional(readOnly = true)
-    public List<EnrollmentResponseDTO> getEnrollmentsByCourse(Long courseId) {
+    public List<EnrollmentResponseDTO> getEnrollmentsByCourse(Long courseId, String bearerToken) {
         return enrollmentRepository.findByCourseId(courseId).stream()
                 .map(e -> {
-                    StudentDTO student = studentClient.getStudentById(e.getStudentId()).orElse(null);
+                    StudentDTO student = studentClient.getStudentById(e.getStudentId(), bearerToken).orElse(null);
                     return EnrollmentResponseDTO.fromEntity(e, student);
                 })
                 .toList();
     }
 
-    public EnrollmentResponseDTO updateStatus(Long enrollmentId, String status) {
+    /** ADMIN only - see EnrollmentController's @PreAuthorize. */
+    public EnrollmentResponseDTO updateStatus(Long enrollmentId, String status, String bearerToken) {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found with id: " + enrollmentId));
         enrollment.setStatus(Enrollment.EnrollmentStatus.valueOf(status.toUpperCase()));
         Enrollment saved = enrollmentRepository.save(enrollment);
-        StudentDTO student = studentClient.getStudentById(saved.getStudentId()).orElse(null);
+        StudentDTO student = studentClient.getStudentById(saved.getStudentId(), bearerToken).orElse(null);
         return EnrollmentResponseDTO.fromEntity(saved, student);
     }
 
-    public EnrollmentResponseDTO recordGrade(Long enrollmentId, Double grade) {
+    /** ADMIN only - see EnrollmentController's @PreAuthorize. */
+    public EnrollmentResponseDTO recordGrade(Long enrollmentId, Double grade, String bearerToken) {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found with id: " + enrollmentId));
         enrollment.setGrade(grade);
         enrollment.setStatus(Enrollment.EnrollmentStatus.COMPLETED);
         Enrollment saved = enrollmentRepository.save(enrollment);
-        StudentDTO student = studentClient.getStudentById(saved.getStudentId()).orElse(null);
+        StudentDTO student = studentClient.getStudentById(saved.getStudentId(), bearerToken).orElse(null);
         return EnrollmentResponseDTO.fromEntity(saved, student);
     }
 
     public void dropEnrollment(Long enrollmentId) {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found with id: " + enrollmentId));
+        requireAdminOrOwner(enrollment.getStudentId());
         enrollment.setStatus(Enrollment.EnrollmentStatus.DROPPED);
         enrollmentRepository.save(enrollment);
+    }
+
+    private JwtPrincipal requirePrincipal() {
+        JwtPrincipal principal = SecurityUtils.currentUser();
+        if (principal == null) {
+            throw new AccessDeniedException("Authentication required");
+        }
+        return principal;
+    }
+
+    private void requireAdminOrOwner(Long studentId) {
+        JwtPrincipal principal = requirePrincipal();
+        if (!principal.isAdmin() && !principal.ownsStudentId(studentId)) {
+            throw new AccessDeniedException("You may only access your own enrollments");
+        }
     }
 }
