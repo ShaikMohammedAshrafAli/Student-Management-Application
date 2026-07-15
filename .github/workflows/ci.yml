@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - phase2
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build Common Library
+        working-directory: backend/common-lib
+        run: mvn clean install
+
+      - name: Build Auth Service
+        working-directory: backend/auth-service
+        run: mvn clean package
+
+      - name: Build Student Service
+        working-directory: backend/student-service
+        run: mvn clean package
+
+      - name: Build Enrollment Service
+        working-directory: backend/enrollment-service
+        run: mvn clean package
