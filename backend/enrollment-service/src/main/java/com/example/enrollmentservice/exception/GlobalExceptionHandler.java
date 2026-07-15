@@ -3,6 +3,7 @@ package com.example.enrollmentservice.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,62 +16,30 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        return build(HttpStatus.FORBIDDEN, "Forbidden", "You do not have permission to access this resource", req, null);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error("Not Found")
-                .message(ex.getMessage())
-                .path(req.getRequestURI())
-                .build();
-        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+        return build(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), req, null);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateResourceException ex, HttpServletRequest req) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error("Conflict")
-                .message(ex.getMessage())
-                .path(req.getRequestURI())
-                .build();
-        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+        return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), req, null);
     }
 
     @ExceptionHandler(CourseCapacityExceededException.class)
-    public ResponseEntity<ErrorResponse> handleCourseCapacityExceeded(
-            CourseCapacityExceededException ex,
-            HttpServletRequest request) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error("Course Capacity Exceeded")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    public ResponseEntity<ErrorResponse> handleCapacity(CourseCapacityExceededException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, "Course Full", ex.getMessage(), req, null);
     }
 
     @ExceptionHandler(StudentServiceUnavailableException.class)
-    public ResponseEntity<ErrorResponse> handleStudentServiceUnavailable(
-            StudentServiceUnavailableException ex,
-            HttpServletRequest request) {
-
-        ErrorResponse response = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.SERVICE_UNAVAILABLE.value())
-                .error("Student Service Unavailable")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-
-        return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
+    public ResponseEntity<ErrorResponse> handleUnavailable(StudentServiceUnavailableException ex, HttpServletRequest req) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, "Dependency Unavailable", ex.getMessage(), req, null);
     }
-
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
@@ -78,26 +47,24 @@ public class GlobalExceptionHandler {
         for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
             validationErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Validation Failed")
-                .message("One or more fields are invalid")
-                .path(req.getRequestURI())
-                .validationErrors(validationErrors)
-                .build();
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        return build(HttpStatus.BAD_REQUEST, "Validation Failed", "One or more fields are invalid", req, validationErrors);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest req) {
-        ErrorResponse error = ErrorResponse.builder()
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", ex.getMessage(), req, null);
+    }
+
+    private ResponseEntity<ErrorResponse> build(HttpStatus status, String error, String message,
+                                                 HttpServletRequest req, Map<String, String> validationErrors) {
+        ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .error("Internal Server Error")
-                .message(ex.getMessage())
+                .status(status.value())
+                .error(error)
+                .message(message)
                 .path(req.getRequestURI())
+                .validationErrors(validationErrors)
                 .build();
-        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(body, status);
     }
 }

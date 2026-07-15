@@ -1,0 +1,197 @@
+{
+  "info": {
+    "name": "Student Management System - Phase 2 (via API Gateway)",
+    "description": "Full auth + role-based workflow, routed through api-gateway on port 9000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:9000/api/v1" },
+    { "key": "studentAccessToken", "value": "" },
+    { "key": "studentRefreshToken", "value": "" },
+    { "key": "adminAccessToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register (creates a STUDENT account)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Asha Rao\",\n  \"email\": \"asha.rao@example.com\",\n  \"password\": \"SecurePass123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"asha.rao@example.com\",\n  \"password\": \"SecurePass123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/refresh",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{studentRefreshToken}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/logout",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{studentRefreshToken}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Admin - User Management (requires an ADMIN token)",
+      "item": [
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }],
+            "url": "{{gatewayUrl}}/admin/users"
+          }
+        },
+        {
+          "name": "Promote a User to ADMIN",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/admin/users/1/role",
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"ADMIN\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Students (ownership enforced)",
+      "item": [
+        {
+          "name": "Admin Creates a Student Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/students",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Asha\",\n  \"lastName\": \"Rao\",\n  \"email\": \"asha.rao@example.com\",\n  \"dateOfBirth\": \"2001-05-12\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Student Views Own Profile (should succeed)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/students/1"
+          }
+        },
+        {
+          "name": "Student Views Someone Else's Profile (should 403)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/students/2"
+          }
+        },
+        {
+          "name": "Admin Lists All Students",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }],
+            "url": "{{gatewayUrl}}/students?unpaged=true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Courses & Enrollments (ownership enforced)",
+      "item": [
+        {
+          "name": "Admin Creates a Course",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/courses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseCode\": \"CS101\",\n  \"title\": \"Intro to Computer Science\",\n  \"credits\": 4,\n  \"capacity\": 30\n}"
+            }
+          }
+        },
+        {
+          "name": "Student Views Available Courses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/courses"
+          }
+        },
+        {
+          "name": "Student Enrolls Themselves",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/enrollments",
+            "body": { "mode": "raw", "raw": "{\n  \"studentId\": 1,\n  \"courseId\": 1\n}" }
+          }
+        },
+        {
+          "name": "Student Views Own Enrollments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/enrollments/student/1"
+          }
+        },
+        {
+          "name": "Admin Records a Grade",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/enrollments/1/grade",
+            "body": { "mode": "raw", "raw": "{\n  \"grade\": 8.7\n}" }
+          }
+        }
+      ]
+    }
+  ]
+}

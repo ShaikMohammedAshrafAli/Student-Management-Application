@@ -1,6 +1,25 @@
 version: "3.8"
 
 services:
+  mysql-auth:
+    image: mysql:8.0
+    container_name: mysql-auth
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: auth_db
+    ports:
+      - "3310:3306"
+    volumes:
+      - mysql_auth_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sms-net
+
   mysql-student:
     image: mysql:8.0
     container_name: mysql-student
@@ -18,7 +37,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - student-net
+      - sms-net
 
   mysql-enrollment:
     image: mysql:8.0
@@ -37,10 +56,33 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - student-net
+      - sms-net
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    depends_on:
+      mysql-auth:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql-auth
+      DB_PORT: 3306
+      DB_NAME: auth_db
+      DB_USER: root
+      DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+    ports:
+      - "8080:8080"
+    networks:
+      - sms-net
 
   student-service:
-    build: ./student-service
+    build:
+      context: .
+      dockerfile: student-service/Dockerfile
     container_name: student-service
     restart: unless-stopped
     depends_on:
@@ -52,13 +94,16 @@ services:
       DB_NAME: student_db
       DB_USER: root
       DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
     ports:
       - "8081:8081"
     networks:
-      - student-net
+      - sms-net
 
   enrollment-service:
-    build: ./enrollment-service
+    build:
+      context: .
+      dockerfile: enrollment-service/Dockerfile
     container_name: enrollment-service
     restart: unless-stopped
     depends_on:
@@ -72,16 +117,38 @@ services:
       DB_NAME: enrollment_db
       DB_USER: root
       DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
       STUDENT_SERVICE_URL: http://student-service:8081
     ports:
       - "8082:8082"
     networks:
-      - student-net
+      - sms-net
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - student-service
+      - enrollment-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+      AUTH_SERVICE_URL: http://auth-service:8080
+      STUDENT_SERVICE_URL: http://student-service:8081
+      ENROLLMENT_SERVICE_URL: http://enrollment-service:8082
+    ports:
+      - "9000:9000"
+    networks:
+      - sms-net
 
 networks:
-  student-net:
+  sms-net:
     driver: bridge
 
 volumes:
+  mysql_auth_data:
   mysql_student_data:
   mysql_enrollment_data:
