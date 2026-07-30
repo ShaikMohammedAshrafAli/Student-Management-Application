@@ -26,7 +26,7 @@ import java.util.List;
  * JWT signature locally using the shared secret, which is the whole
  * point of using signed, stateless access tokens between services.
  */
-
+@Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

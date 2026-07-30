@@ -1,7 +1,7 @@
 package com.example.enrollmentservice.client;
 
 import com.example.enrollmentservice.dto.StudentDTO;
-import com.example.enrollmentservice.exception.StudentServiceUnavailableException;
+import com.example.enrollmentservice.exception.UpstreamServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -50,7 +50,7 @@ public class StudentClient {
             throw ex;
         } catch (Exception ex) {
             log.error("Failed to reach student-service for id {}: {}", studentId, ex.getMessage());
-            throw new StudentServiceUnavailableException(
+            throw new UpstreamServiceUnavailableException(
                     "Unable to verify student " + studentId + " - student-service is unreachable");
         }
     }
@@ -71,7 +71,7 @@ public class StudentClient {
             return Boolean.TRUE.equals(exists);
         } catch (Exception ex) {
             log.error("Failed to reach student-service to check existence of {}: {}", studentId, ex.getMessage());
-            throw new StudentServiceUnavailableException(
+            throw new UpstreamServiceUnavailableException(
                     "Unable to verify student " + studentId + " - student-service is unreachable");
         }
     }

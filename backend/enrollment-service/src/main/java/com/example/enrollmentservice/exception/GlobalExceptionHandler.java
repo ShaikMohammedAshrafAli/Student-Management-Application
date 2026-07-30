@@ -36,8 +36,8 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, "Course Full", ex.getMessage(), req, null);
     }
 
-    @ExceptionHandler(StudentServiceUnavailableException.class)
-    public ResponseEntity<ErrorResponse> handleUnavailable(StudentServiceUnavailableException ex, HttpServletRequest req) {
+    @ExceptionHandler(UpstreamServiceUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleUnavailable(UpstreamServiceUnavailableException ex, HttpServletRequest req) {
         return build(HttpStatus.SERVICE_UNAVAILABLE, "Dependency Unavailable", ex.getMessage(), req, null);
     }
 
