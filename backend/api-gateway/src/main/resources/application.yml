@@ -17,15 +17,20 @@ spring:
           predicates:
             - Path=/api/v1/students/**
 
-        - id: enrollment-service-courses
-          uri: ${ENROLLMENT_SERVICE_URL:http://localhost:8082}
-          predicates:
-            - Path=/api/v1/courses/**
-
-        - id: enrollment-service-enrollments
+        - id: enrollment-service
           uri: ${ENROLLMENT_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/v1/enrollments/**
+
+        - id: course-service
+          uri: ${COURSE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/courses/**
+
+        - id: grade-service
+          uri: ${GRADE_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/grades/**
 
       globalcors:
         cors-configurations:

@@ -1,4 +1,4 @@
-package com.example.enrollmentservice.entity;
+package com.example.courseservice.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "courses", indexes = {
-        @Index(name = "idx_course_code", columnList = "courseCode", unique = true)
+        @Index(name = "idx_course_code", columnList = "courseCode", unique = true),
+        @Index(name = "idx_course_semester", columnList = "semester"),
+        @Index(name = "idx_course_department", columnList = "department")
 })
 @Data
 @Builder
@@ -28,7 +30,7 @@ public class Course {
     @Column(nullable = false, length = 150)
     private String title;
 
-    @Column(length = 1000)
+    @Column(length = 2000)
     private String description;
 
     @Column(nullable = false)
@@ -38,7 +40,22 @@ public class Course {
     @Builder.Default
     private Integer capacity = 30;
 
-    @Column(nullable = false)
+    /** e.g. "FALL2026", "SPRING2027" - kept as a free-form string for flexibility. */
+    @Column(length = 20)
+    private String semester;
+
+    @Column(length = 100)
+    private String instructor;
+
+    @Column(length = 100)
+    private String department;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private CourseStatus status = CourseStatus.ACTIVE;
+
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

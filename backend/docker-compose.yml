@@ -1,0 +1,250 @@
+version: "3.8"
+
+services:
+  mysql-auth:
+    image: mysql:8.0
+    container_name: mysql-auth
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: auth_db
+    ports:
+      - "3310:3306"
+    volumes:
+      - mysql_auth_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sms-net
+
+  mysql-student:
+    image: mysql:8.0
+    container_name: mysql-student
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: student_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_student_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sms-net
+
+  mysql-enrollment:
+    image: mysql:8.0
+    container_name: mysql-enrollment
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: enrollment_db
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_enrollment_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sms-net
+
+  mysql-course:
+    image: mysql:8.0
+    container_name: mysql-course
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: course_db
+    ports:
+      - "3311:3306"
+    volumes:
+      - mysql_course_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sms-net
+
+  mysql-grade:
+    image: mysql:8.0
+    container_name: mysql-grade
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: grade_db
+    ports:
+      - "3312:3306"
+    volumes:
+      - mysql_grade_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sms-net
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    depends_on:
+      mysql-auth:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql-auth
+      DB_PORT: 3306
+      DB_NAME: auth_db
+      DB_USER: root
+      DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+    ports:
+      - "8080:8080"
+    networks:
+      - sms-net
+
+  student-service:
+    build:
+      context: .
+      dockerfile: student-service/Dockerfile
+    container_name: student-service
+    restart: unless-stopped
+    depends_on:
+      mysql-student:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql-student
+      DB_PORT: 3306
+      DB_NAME: student_db
+      DB_USER: root
+      DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+    ports:
+      - "8081:8081"
+    networks:
+      - sms-net
+
+  course-service:
+    build:
+      context: .
+      dockerfile: course-service/Dockerfile
+    container_name: course-service
+    restart: unless-stopped
+    depends_on:
+      mysql-course:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql-course
+      DB_PORT: 3306
+      DB_NAME: course_db
+      DB_USER: root
+      DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+    ports:
+      - "8083:8083"
+    networks:
+      - sms-net
+
+  enrollment-service:
+    build:
+      context: .
+      dockerfile: enrollment-service/Dockerfile
+    container_name: enrollment-service
+    restart: unless-stopped
+    depends_on:
+      mysql-enrollment:
+        condition: service_healthy
+      student-service:
+        condition: service_started
+      course-service:
+        condition: service_started
+    environment:
+      DB_HOST: mysql-enrollment
+      DB_PORT: 3306
+      DB_NAME: enrollment_db
+      DB_USER: root
+      DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+      STUDENT_SERVICE_URL: http://student-service:8081
+      COURSE_SERVICE_URL: http://course-service:8083
+    ports:
+      - "8082:8082"
+    networks:
+      - sms-net
+
+  grade-service:
+    build:
+      context: .
+      dockerfile: grade-service/Dockerfile
+    container_name: grade-service
+    restart: unless-stopped
+    depends_on:
+      mysql-grade:
+        condition: service_healthy
+      enrollment-service:
+        condition: service_started
+      course-service:
+        condition: service_started
+    environment:
+      DB_HOST: mysql-grade
+      DB_PORT: 3306
+      DB_NAME: grade_db
+      DB_USER: root
+      DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+      COURSE_SERVICE_URL: http://course-service:8083
+      STUDENT_SERVICE_URL: http://student-service:8081
+      ENROLLMENT_SERVICE_URL: http://enrollment-service:8082
+    ports:
+      - "8084:8084"
+    networks:
+      - sms-net
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - student-service
+      - enrollment-service
+      - course-service
+      - grade-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-MzM0NmM4NDNhOWM5NDcyM2FhZmY3NmY2ZGRhYTQ5ZjM0Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm}
+      AUTH_SERVICE_URL: http://auth-service:8080
+      STUDENT_SERVICE_URL: http://student-service:8081
+      ENROLLMENT_SERVICE_URL: http://enrollment-service:8082
+      COURSE_SERVICE_URL: http://course-service:8083
+      GRADE_SERVICE_URL: http://grade-service:8084
+    ports:
+      - "9000:9000"
+    networks:
+      - sms-net
+
+networks:
+  sms-net:
+    driver: bridge
+
+volumes:
+  mysql_auth_data:
+  mysql_student_data:
+  mysql_enrollment_data:
+  mysql_course_data:
+  mysql_grade_data:

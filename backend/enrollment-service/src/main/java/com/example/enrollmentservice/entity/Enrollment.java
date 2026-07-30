@@ -10,12 +10,14 @@ import java.time.LocalDateTime;
 
 /**
  * Represents the enrollment lifecycle of a student in a course.
- * studentId is a reference only (no FK) - the student's own record
- * lives in student-service; this is the boundary of the bounded context.
+ * Both studentId and courseId are references only (no FK, no JPA
+ * relation) - the student record lives in student-service and the
+ * course record lives in course-service. This is the bounded-context
+ * boundary: enrollment-service owns only the enrollment fact itself.
  */
 @Entity
 @Table(name = "enrollments", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_student_course", columnNames = {"studentId", "course_id"})
+        @UniqueConstraint(name = "uk_student_course", columnNames = {"studentId", "courseId"})
 })
 @Data
 @Builder
@@ -31,15 +33,21 @@ public class Enrollment {
     @Column(nullable = false)
     private Long studentId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "course_id", nullable = false)
-    private Course course;
+    /** Reference to the course owned by course-service. */
+    @Column(nullable = false)
+    private Long courseId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private EnrollmentStatus status = EnrollmentStatus.PENDING;
 
+    /**
+     * @deprecated retained for backward compatibility with existing rows
+     * and the legacy PATCH /enrollments/{id}/grade endpoint. grade-service
+     * is now the authoritative source for grades and GPA/CGPA calculation.
+     */
+    @Deprecated
     private Double grade;
 
     @Column(nullable = false)
