@@ -1,4 +1,4 @@
-# StudentHub — Enterprise Student Management System
+# StudentHub
 
 A full-stack, microservices-based Student Management System built with
 **Java 17 / Spring Boot 3** on the backend and **React 19 / Vite / Material UI**
