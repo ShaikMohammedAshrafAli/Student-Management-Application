@@ -1,0 +1,144 @@
+{
+  "info": {
+    "name": "Student Management System - Phase 3 (Courses & Grades)",
+    "description": "course-service and grade-service flows, routed through api-gateway on port 9000. Run the Phase 2 collection first to get tokens and a student profile.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:9000/api/v1" },
+    { "key": "studentAccessToken", "value": "" },
+    { "key": "adminAccessToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Course Catalog (course-service)",
+      "item": [
+        {
+          "name": "Admin Creates a Course (full fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/courses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseCode\": \"CS201\",\n  \"title\": \"Data Structures\",\n  \"description\": \"Core CS course\",\n  \"credits\": 4,\n  \"capacity\": 30,\n  \"semester\": \"FALL2026\",\n  \"instructor\": \"Dr. Iyer\",\n  \"department\": \"Computer Science\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Student Browses Courses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/courses"
+          }
+        },
+        {
+          "name": "Admin Updates Course Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/courses/1",
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACTIVE\"\n}" }
+          }
+        },
+        {
+          "name": "Student Tries to Create a Course (should 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/courses",
+            "body": { "mode": "raw", "raw": "{\n  \"courseCode\": \"HACK101\",\n  \"title\": \"Should Fail\",\n  \"credits\": 1\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Enrollment (now calls course-service internally)",
+      "item": [
+        {
+          "name": "Student Enrolls in the New Course",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/enrollments",
+            "body": { "mode": "raw", "raw": "{\n  \"studentId\": 1,\n  \"courseId\": 1\n}" }
+          }
+        },
+        {
+          "name": "Student Views Own Enrollment (shows nested course from course-service)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/enrollments/student/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Grades & GPA (grade-service)",
+      "item": [
+        {
+          "name": "Admin Assigns a Grade (by enrollmentId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/grades",
+            "body": { "mode": "raw", "raw": "{\n  \"enrollmentId\": 1,\n  \"gradePoints\": 8.7\n}" }
+          }
+        },
+        {
+          "name": "Student Views Own Grades",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/grades/student/1"
+          }
+        },
+        {
+          "name": "Student Views Own CGPA + Semester Breakdown",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/grades/student/1/gpa"
+          }
+        },
+        {
+          "name": "Student Tries to View Someone Else's Grades (should 403)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentAccessToken}}" }],
+            "url": "{{gatewayUrl}}/grades/student/2"
+          }
+        },
+        {
+          "name": "Admin Assigns Grade for a Non-Enrolled Course (should 404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/grades",
+            "body": { "mode": "raw", "raw": "{\n  \"enrollmentId\": 9999,\n  \"gradePoints\": 9.0\n}" }
+          }
+        }
+      ]
+    }
+  ]
+}
