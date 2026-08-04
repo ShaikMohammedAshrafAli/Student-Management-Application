@@ -23,11 +23,6 @@ inter-service call forwards the *original caller's own JWT* downstream
 ("pass-through auth"), so a service's ownership rules apply identically
 whether it's called directly or through another service.
 
-## Class Diagram (LLD)
-![Class Diagram](docs/class-diagram.png)
-
-
-
 | Service              | Port | Responsibility                                      | Database       |
 |-----------------------|------|--------------------------------------------------------|-----------------|
 | `api-gateway`         | 9000 | Single entry point: routing, coarse JWT check, CORS    | —               |
@@ -41,6 +36,9 @@ Every service **independently re-validates** the JWT it receives — the
 gateway's check is defense in depth, not the sole security boundary. If a
 request reached `student-service` directly (bypassing the gateway), it
 would still be fully protected.
+
+## Class Diagram (LLD)
+![Class Diagram](docs/class-diagram.png)
 
 ---
 
