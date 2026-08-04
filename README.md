@@ -116,6 +116,17 @@ student-management-system/
 ```
 
 ---
+## Incremental Approach
+
+- Phase 1: student-service,
+enrollment-service,
+auth-service (registration, login, JWT issuance, refresh tokens, BCrypt, role management),
+common-lib module for DTOs/exceptions/JWT validation shared across every service.
+- Phase 2: api-gateway (Spring Cloud Gateway) as the single entry point, and wired real JWT security into student-service/enrollment-service
+- Phase 3: Split course-service out of enrollment-service entirely (its own DB, its own bounded context), grade-service (grade assignment gated on a real enrollment, GPA/CGPA calculation).
+- Phase 4: Frontend. React 19 + Vite + MUI SPA, talking only to the gateway.
+
+---
 
 ## Setup Instructions
 
@@ -212,79 +223,3 @@ gateway on port 9000:
   from creating a course, admin blocked from grading a fake enrollment)
 
 ---
-
-## Screenshots
-
-Not included in this repository — add your own once you have it running
-locally! Good ones to capture: the login screen, the admin dashboard, the
-student dashboard, and the course-enrollment flow. Drop them in a
-`docs/screenshots/` folder and reference them here.
-
----
-
-## Docker Commands Cheat Sheet
-
-```bash
-# Start everything (backend) in the foreground, rebuilding images
-docker compose up --build
-
-# Start in the background
-docker compose up -d --build
-
-# View logs for one service
-docker compose logs -f enrollment-service
-
-# Stop everything
-docker compose down
-
-# Stop everything AND delete the MySQL volumes (full reset)
-docker compose down -v
-
-# Rebuild a single service after a code change
-docker compose up --build enrollment-service
-```
-
----
-
-## Notes on Production-Readiness
-
-- Constructor injection only (`@RequiredArgsConstructor`), no field injection.
-- Refresh tokens are persisted and individually revocable — a stateless
-  JWT alone can't support real logout, so the refresh token is opaque and
-  stored, with rotation on every refresh.
-- Passwords are BCrypt-hashed; plaintext is never stored or logged.
-- The JWT secret is a **local-dev placeholder**, identical across all
-  services by necessity (they must agree on it to validate each other's
-  tokens). Override `JWT_SECRET` with one strong, randomly generated
-  value — the same value everywhere — before deploying anywhere real.
-- CORS is currently permissive (`allowedOriginPatterns: "*"`) for local
-  dev; tighten this before any real deployment.
-- Ownership checks live at the **service layer**, not just the
-  controller — e.g. `EnrollmentService` re-checks ownership even though
-  the controller's `@PreAuthorize` already gates admin-only actions, so a
-  future new endpoint can't accidentally skip the check.
-- Grades are snapshotted (`credits`, `semester`) at assignment time
-  rather than joined live, so GPA calculations stay correct even if a
-  course's credit value changes later.
-
-## Known Limitations & Future Enhancements
-
-- **No "list all enrollments" or "list all grades" endpoint** — by
-  design, these are scoped by student or by course to avoid an
-  unbounded admin query; a paginated aggregate endpoint would be a
-  natural next step at real scale.
-- **No dedicated admin bootstrap endpoint** — the first admin is created
-  by hand-editing the database. A one-time-use bootstrap token or a CLI
-  seeding script would be a nice addition.
-- **Single shared JWT secret** across services — a real deployment would
-  likely move to asymmetric signing (RS256) so only auth-service holds
-  the private key and other services only need the public key to verify.
-- **No distributed tracing** — adding Spring Cloud Sleuth / Micrometer
-  Tracing + Zipkin would make cross-service debugging much easier as the
-  system grows.
-- **No rate limiting** at the gateway — worth adding for a public deployment.
-- **No automated test suite** — the project was validated by running each
-  service and exercising it via Postman/curl; unit and integration tests
-  (JUnit + Testcontainers for the DB-backed services, React Testing
-  Library for the frontend) would be the next investment for a real
-  production codebase.
