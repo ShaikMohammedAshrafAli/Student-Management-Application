@@ -24,7 +24,7 @@ inter-service call forwards the *original caller's own JWT* downstream
 whether it's called directly or through another service.
 
 ## Class Diagram (LLD)
-
+![Class Diagram](docs/class-diagram.svg)
 
 
 
