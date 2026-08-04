@@ -12,7 +12,7 @@ service boundaries and independently-owned databases over shortcuts.
 
 ---
 
-## Architecture
+## Architecture (HLD)
 
 ![Architecture Diagram](docs/architecture-diagram.svg)
 
@@ -22,6 +22,11 @@ other over plain REST — never by sharing a database — and every
 inter-service call forwards the *original caller's own JWT* downstream
 ("pass-through auth"), so a service's ownership rules apply identically
 whether it's called directly or through another service.
+
+## Class Diagram (LLD)
+
+
+
 
 | Service              | Port | Responsibility                                      | Database       |
 |-----------------------|------|--------------------------------------------------------|-----------------|
